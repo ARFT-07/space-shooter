@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"name": "Space-shooter-lessgo",
+			"path": "../Space-shooter-lessgo"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"cmath": "cpp",
+			"cstdlib": "cpp"
+		}
+	}
+}
