@@ -4,10 +4,10 @@
 #include <stdbool.h>
 
 #define SCREEN_WIDTH 600
-#define SCREEN_HEIGHT 800
+#define SCREEN_HEIGHT 1000
 #define BG_maxY 1067
 #define NUM_ASTEROIDS 5
-#define mainmenumax 862
+#define mainmenumax 1171
 
 // -------------------- Global Variables --------------------
 int spaceshipX = 250, spaceshipY = 100;
@@ -17,12 +17,18 @@ bool gameOver_check = false;
 int time_elapsed = 0;
 int bg_y1 = 0, bg_y2 = BG_maxY;
 int bg_mm1 = 0, bg_mm2 =mainmenumax;
+int hovernewgame= 0;
+int hoverdiff= 0;
+int hoverhighscore= 0;
+int hovercredits= 0;
+int hoverquit= 0;
+
 
 
 
 int yPos = 0;              // Menu scroll position
 int fallSpeed = 3;
-int imageHeight = 800;
+int imageHeight = 1171;
 
 char gameState[20] = "menu";  // "menu" or "game"
 
@@ -38,20 +44,27 @@ void iDraw() {
     iClear();
 
     if (strcmp(gameState, "menu") == 0) {
-        iShowImage(0, yPos, "assets/images/main menu 1.png");
-        iShowImage(0, yPos + imageHeight, "assets/images/main menu 1.png");
+        iShowImage(0, yPos, "assets/images/MM_BG.png");
+        iShowImage(0, yPos + imageHeight, "assets/images/MM_BG.png");
 
         yPos -= fallSpeed;
         if (yPos <= -imageHeight) yPos = 0;
 
         // Menu Texts
-        iSetColor(191, 44, 44);
-        iTextAdvanced(242, 509, "New Game", 0.2, 2.0, GLUT_STROKE_ROMAN);
-        iTextAdvanced(242, 449, "Game Mode", 0.2, 2.0, GLUT_STROKE_ROMAN);
-        iTextAdvanced(242, 399, "High Scores", 0.2, 2.0, GLUT_STROKE_ROMAN);
-        iTextAdvanced(242, 349, "Credits", 0.2, 2.0, GLUT_STROKE_ROMAN);
-        iTextAdvanced(242, 299, "Volume", 0.2, 2.0, GLUT_STROKE_ROMAN);
-        iTextAdvanced(242, 249, "Exit Game", 0.2, 2.0, GLUT_STROKE_ROMAN);
+        if(hovernewgame) iShowImage(40 , (1000-370), "assets/images/newgame_mm_hover.png" );
+        else iShowImage(40 , (1000-350), "assets/images/newgame_mm.png" );
+
+        if(hoverdiff)  iShowImage(40 , (1000-470), "assets/images/difficulty_mm_hover.png" );
+        else iShowImage(40 , (1000-450), "assets/images/difficulty_mm.png" );
+
+        if(hoverhighscore) iShowImage(40 , (1000-570), "assets/images/highscore_mm_hover.png" );
+        else iShowImage(40 , (1000-550), "assets/images/highscore_mm.png" );
+
+        if(hovercredits)   iShowImage(40 , (1000-670), "assets/images/credits_mm_hover.png" );
+        else iShowImage(40 , (1000-650), "assets/images/credits_mm.png" );
+
+        if(hoverquit)  iShowImage(40 , (1000-770), "assets/images/quitgame_mm_hover.png" );
+         else iShowImage(40 , (1000-750), "assets/images/quitgame_mm.png" );
     }
 
     else if (strcmp(gameState, "game") == 0) {
@@ -80,7 +93,7 @@ void iDraw() {
                 strcpy(gameState, "menu"); // Reset to menu
                 return;
             }
-        }
+        }  
 
         // Score Text
         char scoreStr[20];
@@ -123,7 +136,25 @@ void iKeyboard(unsigned char key) {
     if (key == 'q') exit(0);
 }
 void iMouseMove(int mx, int my) {
-  // place your codes here
+  if(my>(1000-324)){
+    hovernewgame = 1;
+  }
+  else hovernewgame = 0;
+  if(my<(1000-324) && my > (1000-424)){
+    hoverdiff = 1;
+  }
+  else hoverdiff = 0;
+  if(my<(1000-424) && my> (1000-524)){
+    hoverhighscore = 1;
+  }
+   else hoverhighscore = 0;
+  if(my<(1000-524) && my> (1000-624)){
+    hovercredits = 1;
+  } else hovercredits = 0;
+  if(my<(1000-624) && my> (1000-724)){
+    hoverquit = 1;
+  } else hoverquit = 0;
+ 
 }
 
 /*
@@ -162,14 +193,22 @@ int gameover(int ax, int ay, int sx, int sy) {
 }
 
 void rollingBackground() {
+    if (strcmp(gameState, "menu") == 0) {
+
     bg_y1 -= 3;
     bg_y2 -= 3;
     if (bg_y1 <= -BG_maxY) bg_y1 = bg_y2 + BG_maxY;
     if (bg_y2 <= -BG_maxY) bg_y2 = bg_y1 + BG_maxY;
+
+    }
+    if (strcmp(gameState, "game") == 0) {
+
     bg_mm1 -= 3;
     bg_mm2 -= 3;
     if (bg_y1 <= -mainmenumax) bg_y1 = bg_y2 + mainmenumax;
     if (bg_y2 <= -mainmenumax) bg_y2 = bg_y1 + mainmenumax;
+        
+    }
 }
 
 void show_time() {
