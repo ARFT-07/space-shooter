@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <div align="center">
 <h1> Modern iGraphics Library</h1>
 <!-- <h2> A C++ Graphics Library for Beginners</h2> -->
@@ -935,3 +936,6 @@ This library is for educational purposes and is typically used in academic or ho
 -   [Extended iGraphics by Ash](https://github.com/risenfromashes/Curves/) - Implementation of cross-platform iGraphics library with additional features.
 -   [irrKlang](https://github.com/jonas2602/irrKlang) - The sound engine used for sound playback.
 -   [freeglut](https://freeglut.sourceforge.net/) - The OpenGL Utility Toolkit. -->
+=======
+hello
+>>>>>>> 53b3f280626df14e0b97e3c2569b75d1bf22e6ab
