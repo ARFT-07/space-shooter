@@ -16,8 +16,10 @@
 
 // -------------------- Global Variables --------------------
 Image bgimage;
+Image spaceship;
 Image gamestateimage;
 Image difficulty;
+Image bullet_image, asteroid, villain1, villain2;
 Image credits;
 Image pause;
 int spaceshipX = 200, spaceshipY = 100;
@@ -66,8 +68,7 @@ void iDraw() {
 
   if (strcmp(gameState, "menu") == 0) {
 
-    // iShowImage(0, yPos, "assets/images/MM_BG.png");
-    // iShowImage(0, yPos + imageHeight, "assets/images/MM_BG.png");
+    
     iShowImage(0, 0, "assets/images/mmbg3.jpg");
 
     yPos -= fallSpeed;
@@ -107,16 +108,15 @@ void iDraw() {
     iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
     iShowLoadedImage(0, 0, &gamestateimage);
-    iWrapImage(&gamestateimage , -5);
-    // iShowImage(0, 0, "assets/images/bg_horizontal.png");
-    // iShowImage(0, 0, "assets/images/bg_horizontal.png");
+    iWrapImage(&gamestateimage, -5);
+   
 
     // Spaceship
-    iShowImage(spaceshipX, spaceshipY, "assets/images/ss2.png");
+    iShowLoadedImage(spaceshipX, spaceshipY, &spaceship);
 
     // Villains and Score
 
-    for (int i = 0; i < NUM_villains; i++) {
+   
 
       for (int i = 0; i < NUM_villains; i++) {
 
@@ -143,11 +143,11 @@ void iDraw() {
 
         // Draw villain image
         if (pic_checker[i] == 0)
-          iShowImage(villainX[i], villainY[i], "assets/images/asteroids1.png");
+          iShowLoadedImage(villainX[i], villainY[i], &asteroid);
         else if (pic_checker[i] == 1)
-          iShowImage(villainX[i], villainY[i], "assets/images/villain3.png");
+          iShowLoadedImage(villainX[i], villainY[i],&villain1);
         else if (pic_checker[i] == 2)
-          iShowImage(villainX[i], villainY[i], "assets/images/villain2_x.png");
+          iShowLoadedImage(villainX[i], villainY[i], &villain2);
 
         // Speed control
         int speed = 1;
@@ -168,7 +168,7 @@ void iDraw() {
           return;
         }
       }
-    }
+    
 
     drawBullets();
     // Score Text
@@ -318,7 +318,7 @@ void fireBullets() {
 void drawBullets() {
   for (int i = 0; i < MAX_BULLETS; i++) {
     if (bulletVisible[i] == 1) {
-      iShowImage(bulletX[i], bulletY[i], "assets/images/bullets1.png");
+      iShowLoadedImage(bulletX[i], bulletY[i], &bullet_image);
     }
   }
 }
@@ -327,9 +327,9 @@ void updateBullets() {
   for (int i = 0; i < MAX_BULLETS; i++) {
     if (bulletVisible[i] == 1) {
       bulletY[i] += bulletSpeed;
-
-      if (bulletY[i] > SCREEN_HEIGHT)
-        bulletVisible[i] = 0; // Disappear offscreen
+      bulletX[i] += 2;  // Horizontal movement
+      if (bulletY[i] > SCREEN_HEIGHT || bulletX[i] > SCREEN_WIDTH)
+        bulletVisible[i] = 0;
     }
   }
 }
@@ -395,6 +395,11 @@ void show_time() {
 }
 void loadResources() {
   iLoadImage(&gamestateimage, "assets/images/bg_horizontal.png");
+  iLoadImage(&spaceship, "assets/images/ss3.png");
+  iLoadImage(&bullet_image, "assets/images/bullets1.png");
+  iLoadImage(&villain1, "assets/images/villain3.png");
+  iLoadImage(&villain2, "assets/images/villain2_x.png");
+  iLoadImage(&asteroid, "assets/images/asteroids1.png");
 }
 
 // -------------------- Menu Resource Load --------------------
