@@ -85,7 +85,6 @@ int shield_active = 0;
 int shield_timer = 0;
 int rapid_fire_active = 0;
 int rapid_fire_timer = 0;
-int difficulty_level = 1;
 int lives = 3;
 int combo_count = 0;
 int combo_timer = 0;
@@ -115,7 +114,7 @@ void initialize_Bullets();
 void initialize_Explosions();
 void initialize_PowerUps();
 void initialize_Particles();
-int gameover(int ax, int ay, int sx, int sy);
+int PlayerVillainCollisionCheck(int ax, int ay, int sx, int sy);
 void rollingBackground();
 void show_time();
 void fireBullets();
@@ -137,7 +136,7 @@ void drawGameOver();
 void resetGame();
 void saveHighScore();
 void loadHighScore();
-void insertHighScore();
+void insertHighScore(int score_count);
 void drawHighScores();
 
 // -------------------- iDraw --------------------
@@ -219,11 +218,19 @@ void iDraw() {
 
         // Villains
         for (int i = 0; i < NUM_villains; i++) {
-            if (villainY[i] < -50) {
+            if (villainX[i] < -50) {
                 pic_checker[i] = rand() % newadd;
-                villainY[i] = SCREEN_HEIGHT + rand() % 300;
-                villainX[i] = rand() % (SCREEN_WIDTH - 50);
-                villainHealth[i] = (pic_checker[i] == 0) ? 1 : 2; // Asteroids have 1 HP, others have 2
+                villainY[i] = rand() % SCREEN_HEIGHT;
+                villainX[i] =  SCREEN_WIDTH + rand() % 300;
+                if(pic_checker[i] == 0){
+                villainHealth[i]=1;
+                }else if(pic_checker[i] == 1){
+                 villainHealth[i]=2;
+                }else if(pic_checker[i] == 2){
+                      villainHealth[i]=3;
+                }else{
+                    villainHealth[i]=4;
+                }
                 score_count++;
             }
 
@@ -252,45 +259,61 @@ void iDraw() {
             // Health bar for villains with > 1 HP
             if (villainHealth[i] > 1) {
                 iSetColor(255, 0, 0);
-                iFilledRectangle(villainX[i], villainY[i] + 60, 50, 5);
+                iFilledRectangle(villainX[i] + 60, villainY[i] , 5, 50);
                 iSetColor(0, 255, 0);
-                iFilledRectangle(villainX[i], villainY[i] + 60, 25 * villainHealth[i], 5);
+                iFilledRectangle(villainX[i] + 60 , villainY[i] , 5 ,  25 * villainHealth[i] );
             }
 
             // Enhanced movement with different patterns
             int speed = 1 + (score_count / 50);
             if (speed > 5) speed = 5;
 
-            villainY[i] -= speed;
+            villainX[i] -= speed;
 
             // Different movement patterns for different villains
             if (pic_checker[i] == 0) {
                 // Asteroids move straight down
             } else if (pic_checker[i] == 1) {
                 // Villain1 moves in sine wave
-                villainX[i] += (int)(5 * sin(villainY[i] * 0.02));
+                villainX[i] += (int)(5 * sin(villainX[i] * 0.02));
             } else if (pic_checker[i] == 2) {
                 // Villain2 moves left-right
-                villainX[i] += (i % 2 == 0) ? 2 : -2;
+                villainX[i] += (int)(5 * asin(sin(villainX[i] * 0.02)));
             }
 
             // Boundary checking
-            if (villainX[i] < 0) villainX[i] = 0;
-            if (villainX[i] > SCREEN_WIDTH - 50) villainX[i] = SCREEN_WIDTH - 50;
+            if (villainY[i] < 0) villainY[i] = 0;
+            if (villainY[i] > SCREEN_HEIGHT - 50) villainY[i] = SCREEN_HEIGHT - 50;
 
             // Check for collision with player
-            if (gameover(villainX[i], villainY[i], spaceshipX, spaceshipY)) {
+            if (PlayerVillainCollisionCheck(villainX[i], villainY[i], spaceshipX, spaceshipY)) {
                 if (shield_active) {
                     shield_active = 0;
                     createExplosion(villainX[i], villainY[i], 0);
                     villainY[i] = SCREEN_HEIGHT + rand() % 300;
                     villainX[i] = rand() % (SCREEN_WIDTH - 50);
                 } else {
+                    if(pic_checker[i]==0){
+                    player_health -= 5;
+                    createExplosion(spaceshipX, spaceshipY, 1);
+                    villainY[i] = SCREEN_HEIGHT + rand() % 300;
+                    villainX[i] = rand() % (SCREEN_WIDTH - 50);
+                }else if(pic_checker[i]==1){
+                    player_health -= 10;
+                    createExplosion(spaceshipX, spaceshipY, 1);
+                    villainY[i] = SCREEN_HEIGHT + rand() % 300;
+                    villainX[i] = rand() % (SCREEN_WIDTH - 50);
+                }else if(pic_checker[i]==2){
+                    player_health -= 15;
+                    createExplosion(spaceshipX, spaceshipY, 1);
+                    villainY[i] = SCREEN_HEIGHT + rand() % 300;
+                    villainX[i] = rand() % (SCREEN_WIDTH - 50);
+                }else if(pic_checker[i]==3){
                     player_health -= 20;
                     createExplosion(spaceshipX, spaceshipY, 1);
                     villainY[i] = SCREEN_HEIGHT + rand() % 300;
                     villainX[i] = rand() % (SCREEN_WIDTH - 50);
-                    
+                }
                     if (player_health <= 0) {
                         lives--;
                         if (lives <= 0) {
@@ -387,7 +410,8 @@ void drawHUD() {
 
     // Power-up indicators
     if (shield_active) {
-        iSetColor(0, 255, 255);
+        iSetTransparency(1);
+        iSetTransparentColor(0, 255, 255, 110 / 255.0);
         iTextBold(SCREEN_WIDTH - 150, SCREEN_HEIGHT - 30, "SHIELD", GLUT_BITMAP_TIMES_ROMAN_24);
     }
     if (rapid_fire_active) {
@@ -843,7 +867,7 @@ void initialize_Bullets() {
     }
 }
 
-int gameover(int ax, int ay, int sx, int sy) {
+int PlayerVillainCollisionCheck(int ax, int ay, int sx, int sy) {
     return (abs(ax - (sx+80)) < 80 && abs(ay - (sy+80)) < 80);
 }
 
