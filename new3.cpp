@@ -8,9 +8,9 @@
 #include <time.h>
 #include <math.h>
 
-#define SCREEN_WIDTH 1920
-#define SCREEN_HEIGHT 1080
-#define NUM_VILLAINS 20
+#define SCREEN_WIDTH 1300
+#define SCREEN_HEIGHT 700
+#define NUM_VILLAINS 8
 #define MAINMENUMAX 1171
 #define MAX_BULLETS 25
 #define MAX_ENEMY_BULLETS 15
@@ -18,8 +18,20 @@
 #define MAX_POWERUPS 6
 #define MAX_PARTICLES 80
 #define PI 3.14159265359
+#define MAX_BOSS_MISSILES 4
+#define MAX_PILOTS 6
+#define MAX_NAME_LEN 10
+#define MAX_LINE 20
+#define MAX_SHOWN_SCORE 5
+#define MAX_NAME_LENGTH 50
+#define MAX_SCORES 10 
 
 // -------------------- Enhanced Structures --------------------
+typedef struct {
+    char name[MAX_NAME_LENGTH];
+    int score;
+} HighScore;
+
 typedef struct {
     int x, y;
     int active;
@@ -75,9 +87,9 @@ typedef struct {
 
 // -------------------- Global Variables --------------------
 Image bgimage;
-Image spaceship;
+Image spaceship1, spaceship2, spaceship3, spaceship4;
 Image gamestateimage;
-Image difficulty;
+Image diffbg;
 Image bullet_image, asteroid, villain1, villain2, villain3;
 Image credits;
 Image pause;
@@ -85,14 +97,14 @@ Image explosion_img, powerup_img, shield_img;
 Image health_img, rapid_img, multishot_img;
 Image enemy_bullet_img;
 Image title;
-Image diffbg;
-Image easy;
-Image medium;
-Image hard;
-
+Image final_boss;
+Image boss_missiles;
+Image scorebg;
+Image credit;
 int spaceshipX = 200, spaceshipY = 100;
 Villain villains[NUM_VILLAINS];
 int score_count = 0;
+int nameIndex;
 int high_score = 0;
 bool gameOver_check = false;
 int time_elapsed = 0;
@@ -103,15 +115,28 @@ int hoverdiff = 0;
 int hoverhighscore = 0;
 int hovercredits = 0;
 int hoverquit = 0;
+int bulletX[MAX_BULLETS], bulletY[MAX_BULLETS];
+int bulletVisible[MAX_BULLETS];
+int bgsound = -1;
+float bossX = 1760, bossY = 540;
+float boss_angle = 0;
+int boss_trigger = 0;
+int boss_active=0;
 int hovereasy = 0;
 int hovermedium = 0;
 int hoverhard = 0;
 
-int bulletX[MAX_BULLETS], bulletY[MAX_BULLETS];
-int bulletVisible[MAX_BULLETS];
-int bgsound = -1;
+
+float bossMissileX[MAX_BOSS_MISSILES];
+float bossMissileY[MAX_BOSS_MISSILES];
+float bossMissileDX[MAX_BOSS_MISSILES];
+float bossMissileDY[MAX_BOSS_MISSILES];
+int bossMissileVisible[MAX_BOSS_MISSILES];
 
 // Enhanced features
+int count=0;
+int boss_health = 200;
+int boss_max_health = 200;
 int player_health = 100;
 int max_health = 100;
 int shield_active = 0;
@@ -121,13 +146,17 @@ int rapid_fire_timer = 0;
 int multishot_active = 0;
 int multishot_timer = 0;
 int difficulty_level = 1;
-int lives = 1;
+int villainSpawnTimer = 0;  
+int villainSpawnThreshold = 600;
 int weapon_level = 1;
+int boss_missile_timer = 2000;
 
 Explosion explosions[MAX_EXPLOSIONS];
 PowerUp powerups[MAX_POWERUPS];
 Particle particles[MAX_PARTICLES];
 EnemyBullet enemyBullets[MAX_ENEMY_BULLETS];
+HighScore highScores[MAX_SCORES + 1];
+int scoreCount = 0;
 
 int yPos = 0; // Menu scroll position
 int fallSpeed = 3;
@@ -147,7 +176,7 @@ int gameTimer = 0;
 int spawnTimer = 180; // Delay between villain spawns
 
 // Names for credits
-char playerName[50] = "Space Pilot";
+char playerName[50] = "Please Enter Name";
 char gameTitle[50] = "Cosmic Defenders";
 char developerName[50] = "Created by: Game Dev Team";
 
@@ -158,8 +187,11 @@ void initialize_EnemyBullets();
 void initialize_Explosions();
 void initialize_PowerUps();
 void initialize_Particles();
-int  gameover(int ax, int ay, int sx, int sy);
+void drawHighScores() ;
+void saveHighScores(const char *filename);
+int gameover(int ax, int ay, int sx, int sy);
 void rollingBackground();
+void updateHighScores(const char *filename, const char *playerName, int playerScore);
 void show_time();
 void fireBullets();
 void drawBullets();
@@ -182,14 +214,25 @@ void createParticles(int x, int y, int count, int type);
 void drawHUD();
 void drawGameOver();
 void resetGame();
-void saveHighScore();
-void loadHighScore();
 void updateVillains();
 void drawVillains();
 void initializeVillain(int index);
 float getWaveOffset(Villain* v, float currentY);
 void gameUpdateLoop(); // Consolidated update function
 void createCircularCollisionEffect(int x, int y);
+void updateBossMovement();
+void updateBossMissiles();
+void fireBossMissiles();
+void drawBossMissiles();
+int readScores();
+int enterPressed = 0;
+void ScoreInsert(HighScore  Onboard[], HighScore  newPilot, int score_count);
+void ShowScore();
+int compare(const void* a, const void* b) {
+    HighScore * pilotA = (HighScore *)a;
+    HighScore * pilotB = (HighScore *)b;
+    return pilotB->score - pilotA->score; // Sort in descending order
+}
 
 // -------------------- iDraw --------------------
 void iDraw() {
@@ -198,6 +241,7 @@ void iDraw() {
     if (strcmp(gameState, "menu") == 0) {
         iShowImage(0, 0, "assets/images/mmbg3.jpg");
         iShowLoadedImage(500 , -100 , &title);
+        enterPressed = 0;
 
         yPos -= fallSpeed;
         if (yPos <= -imageHeight)
@@ -207,48 +251,59 @@ void iDraw() {
         if (hovernewgame) {
             iSetColor(255, 255, 0);
             
-            iShowImage(200, (1000 - 370), "assets/images/newgame_mm_hover.png");
+            iShowImage(200, (700 - 185), "assets/images/newgame_mm_hover.png");
         } else {
-            iShowImage(200, (1000 - 350), "assets/images/newgame_mm.png");
+            iShowImage(200, (700 - 165), "assets/images/newgame_mm.png");
         }
+
         if (hoverdiff) {
             iSetColor(255, 255, 0);
             
-            iShowImage(200, (1000 - 470), "assets/images/difficulty_mm_hover.png");
+            iShowImage(200, (700 - 285), "assets/images/difficulty_mm_hover.png");
         } else {
-            iShowImage(200, (1000 - 450), "assets/images/difficulty_mm.png");
+            iShowImage(200, (700 - 265), "assets/images/difficulty_mm.png");
         }
 
         if (hoverhighscore) {
             iSetColor(255, 255, 0);
             
-            iShowImage(200, (1000 - 570), "assets/images/highscore_mm_hover.png");
+            iShowImage(200, (700 - 385), "assets/images/highscore_mm_hover.png");
         } else {
-            iShowImage(200, (1000 - 550), "assets/images/highscore_mm.png");
+            iShowImage(200, (700 - 365), "assets/images/highscore_mm.png");
         }
 
         if (hovercredits) {
             iSetColor(255, 255, 0);
             
-            iShowImage(200, (1000 - 670), "assets/images/credits_mm_hover.png");
+            iShowImage(200, (700 - 485), "assets/images/credits_mm_hover.png");
         } else {
-            iShowImage(200, (1000 - 650), "assets/images/credits_mm.png");
+            iShowImage(200, (700 - 465), "assets/images/credits_mm.png");
         }
 
         if (hoverquit) {
             iSetColor(255, 255, 0);
             
-            iShowImage(200, (1000 - 770), "assets/images/quitgame_mm_hover.png");
+            iShowImage(200, (700 - 585), "assets/images/quitgame_mm_hover.png");
         } else {
-            iShowImage(200, (1000 - 750), "assets/images/quitgame_mm.png");
+            iShowImage(200, (700 - 565), "assets/images/quitgame_mm.png");
         }
 
-       
+
+    }else if(strcmp(gameState, "highscore") == 0){
+        iShowLoadedImage(0, 0, &scorebg);
+        drawHighScores();
+
+    }
+    else if(strcmp(gameState, "credits") == 0){
+        iShowLoadedImage(0, 0, &credit);
+        iSetColor(255, 255, 255);
+        iTextBold(5, 5, "press anywhere to continue", GLUT_BITMAP_TIMES_ROMAN_24);
     }
 
-    if (strcmp(gameState, "difficulty") == 0) {
 
-        iShowLoadedImage(0 , 0 , &diffbg);
+
+      else if(strcmp(gameState, "difficulty") == 0) {
+          iShowLoadedImage(0 , 0 , &diffbg);
         if(!hovereasy){
             iShowImage(150, 250 ,  "assets/images/easy.png" );
         }
@@ -266,12 +321,10 @@ void iDraw() {
              
         else 
         iShowImage(750, 250 ,  "assets/images/hardhover.png" );
-
-
        
-    }
 
-    
+       }
+
     
 
     else if (strcmp(gameState, "game") == 0) {
@@ -286,15 +339,37 @@ void iDraw() {
       
 
         
-        iShowLoadedImage(spaceshipX, spaceshipY, &spaceship);
+         if(score_count<=50){
+        iShowLoadedImage(spaceshipX, spaceshipY, &spaceship1);}
+        else if(score_count<=100){
+            iShowLoadedImage(spaceshipX, spaceshipY, &spaceship2);}
+        else if(score_count<=150){
+            iShowLoadedImage(spaceshipX, spaceshipY, &spaceship3);}
+            else{
+            iShowLoadedImage(spaceshipX, spaceshipY, &spaceship4);
+            }
+        if (score_count >= 200 && !boss_trigger)
+        {
+            boss_trigger = 1;
+            boss_active = 1;
+        }
           if (shield_active) {
             iSetColor(0, 255, 255);
             for (int i = 0; i < 2; i++) {
                 iCircle(spaceshipX + 100, spaceshipY + 100, 140 + i*5, 50);
             }
         }
-
-        drawVillains();
+         if(boss_active==0){
+        drawVillains();}
+        else{
+             iShowLoadedImage((int)bossX, (int)bossY, &final_boss);
+            boss_missile_timer++;
+            drawBossMissiles();
+        if (boss_missile_timer >= 2000) { //40 sec por por marbe 
+       fireBossMissiles();
+        boss_missile_timer = 0;
+        }
+        }
         drawBullets();
         drawEnemyBullets();
         drawExplosions();
@@ -308,9 +383,22 @@ void iDraw() {
         iSetColor(0, 0, 0);
         iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         iShowLoadedImage(0, 0, &gamestateimage);
-        iShowLoadedImage(spaceshipX, spaceshipY, &spaceship);
-        drawVillains();
+        if(score_count<=50){
+        iShowLoadedImage(spaceshipX, spaceshipY, &spaceship1);}
+        else if(score_count<=100){
+            iShowLoadedImage(spaceshipX, spaceshipY, &spaceship2);}
+        else if(score_count<=150){
+            iShowLoadedImage(spaceshipX, spaceshipY, &spaceship3);}
+            else{
+            iShowLoadedImage(spaceshipX, spaceshipY, &spaceship4);
+            }
 
+        if (boss_active) {
+            iShowLoadedImage((int)bossX, (int)bossY, &final_boss);
+        }
+           else{ 
+        drawVillains();
+           }
         // Semi-transparent overlay
         iSetColor(0, 0, 0);
         iFilledRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -326,16 +414,35 @@ void iDraw() {
     }
 
     else if (strcmp(gameState, "gameover") == 0) {
+        updateHighScores("highscores.txt", playerName, score_count);
         drawGameOver();
     }
+
+    else if (strcmp(gameState, "highscore") == 0) {
+        iShowImage(0 , 0 ,"assets/images/diffbg.png");
+        drawHighScores();
+    }
+
+
+    
 
     else if (strcmp(gameState, "exit") == 0) {
         iShowImage(0, 0, "assets/images/exit page.png");
         if (exittime >= 4) {
-            saveHighScore();
+          
             exit(0);
         }
     }
+
+    else if (strcmp(gameState, "infopage") == 0) {
+        iShowImage(0, 0, "assets/images/nameenter.png"); 
+         iSetColor(0, 0, 0);      
+        iText(591, 370, playerName, GLUT_BITMAP_HELVETICA_18);
+        if (enterPressed) {
+            strcpy(gameState, "game");
+           
+        }
+}
 }
 
 // -------------------- Enhanced Villain System --------------------
@@ -376,7 +483,7 @@ void initializeVillain(int index) {
     villains[index].waveFrequency = 0.01f + (rand() % 20) * 0.001f;
     villains[index].wavePhase = (rand() % 360) * PI / 180.0f;
     villains[index].baseSpeed = 2 + (score_count / 200);
-    villains[index].horizontalSpeed = 3 + rand() % 10; // CHANGED: Much slower horizontal speed
+    villains[index].horizontalSpeed = 1*difficulty_level + rand() % 10; // CHANGED: Much slower horizontal speed
     villains[index].fireTimer = rand() % (villains[index].fireRate + 1);
     
     if (villains[index].baseSpeed > 4) villains[index].baseSpeed = 4; // CHANGED: Reduced max speed
@@ -405,9 +512,9 @@ float getWaveOffset(Villain* v, float currentX) {
 void updateVillains() {
     for (int i = 0; i < NUM_VILLAINS; i++) {
         if (!villains[i].active) {
-            if (spawnTimer <= 0 && rand() % 20 == 0) {
+            if (spawnTimer <= 0 && rand() % 120 == 0) {
                 initializeVillain(i);
-                spawnTimer = 60 + rand() % 20;
+                spawnTimer = 60 + rand() % 120;
             }
             continue;
         }
@@ -459,14 +566,11 @@ void updateVillains() {
                 villains[i].active = 0;
                 
                 if (player_health <= 0) {
-                    lives--;
-                    if (lives <= 0) {
-                        strcpy(gameState, "gameover");
-                        return;
-                    } else {
-                        player_health = max_health;
-                        createExplosion(spaceshipX, spaceshipY, 2);
-                    }
+                    createParticles(spaceshipX + 75, spaceshipY + 50, 20, 2);
+                    createExplosion(spaceshipX + 75, spaceshipY + 50, 0);
+                    
+                    strcpy(gameState, "gameover");
+                    return;
                 }
             }
         }
@@ -546,8 +650,8 @@ void updateEnemyBullets() {
 void drawEnemyBullets() {
     for (int i = 0; i < MAX_ENEMY_BULLETS; i++) {
         if (enemyBullets[i].active) {
-            iSetColor(255, 100, 100);
-            iFilledCircle(enemyBullets[i].x, enemyBullets[i].y, 5);
+            iSetColor(0, 0, 0);
+            iFilledCircle(enemyBullets[i].x, enemyBullets[i].y, 6);
             iSetColor(255, 200, 200);
             iFilledCircle(enemyBullets[i].x, enemyBullets[i].y, 3);
         }
@@ -573,13 +677,10 @@ void checkEnemyBulletPlayerCollision() {
                     createParticles(spaceshipX + 75, spaceshipY + 50, 8, 2);
                     
                     if (player_health <= 0) {
-                        lives--;
-                        if (lives <= 0) {
-                            strcpy(gameState, "gameover");
-                            return;
-                        } else {
-                            player_health = max_health;
-                        }
+                        createParticles(spaceshipX + 75, spaceshipY + 50, 20, 2);
+                        createExplosion(spaceshipX + 75, spaceshipY + 50, 0);
+                        strcpy(gameState, "gameover");
+                        return;
                     }
                 }
             }
@@ -685,11 +786,199 @@ void drawParticles() {
         }
     }
 }
+//-----------------boss missiles-------------------
 
+void updateBossMissiles() {
+    for (int i = 0; i < MAX_BOSS_MISSILES; i++) {
+        if (bossMissileVisible[i] == 1) {
+            bossMissileX[i] -= 10;
+            // Remove missile if it goes out of screen
+            if (bossMissileX[i] < -50) {
+                bossMissileVisible[i] = 0;
+            }
+            // Collision with player (simple bounding box)
+            if (bossMissileX[i] < spaceshipX + 40 && bossMissileX[i] > spaceshipX &&
+                bossMissileY[i] < spaceshipY + 100 && bossMissileY[i] > spaceshipY) {
+                if (shield_active) {
+                    player_health -= 20;
+                    shield_active = 0; // Shield breaks
+                    if (player_health < 0) {
+                        player_health = 0;}
+                }else{
+                    player_health -= 40; // Direct hit damage
+                    if (player_health < 0) {
+                        player_health = 0;}
+                
+                    if (player_health <= 0) {
+                        createParticles(spaceshipX + 75, spaceshipY + 50, 20, 2);
+                        createExplosion(spaceshipX + 75, spaceshipY + 50, 0);
+                        // Game over state
+                        gameOver_check = true;
+                        strcpy(gameState, "gameover");
+                    }
+               
+                bossMissileVisible[i] = 0;
+                createExplosion(spaceshipX, spaceshipY, 1);
+            }
+        }
+    }
+}
+}
+
+void drawBossMissiles() {
+    for (int i = 0; i < MAX_BOSS_MISSILES; i++) {
+        if (bossMissileVisible[i] == 1) {
+            iShowLoadedImage((int)bossMissileX[i], (int)bossMissileY[i], &bullet_image); // Use bullet image for missile
+        }
+    }
+}
+
+void updateBossMovement() {
+    if (!boss_active || boss_health <= 0)
+        return;
+
+    boss_angle += 0.05;
+    if (boss_angle > 2 * M_PI)
+        boss_angle -= 2 * M_PI;
+
+    float radius = 100;
+    float a = radius;
+    float x = a * sin(boss_angle);
+    float y = a * sin(boss_angle) * cos(boss_angle);
+
+    bossX = SCREEN_WIDTH / 2 + x;
+    bossY = SCREEN_HEIGHT / 2 + y * 2; // Vertical infinity shape
+}
+
+void fireBossMissiles() {
+    if (!boss_active || boss_health <= 0) return;
+    // Spawn 4 missiles equidistantly along the screen width
+    for (int i = 0; i < MAX_BOSS_MISSILES; i++) {
+        bossMissileX[i] = (SCREEN_WIDTH / (MAX_BOSS_MISSILES + 1)) * (i + 1);
+        bossMissileY[i] = bossY;
+        bossMissileVisible[i] = 1;
+    }
+}
+
+
+//-------------------- Highscores --------------------
+
+void loadHighScores(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    scoreCount = 0;  // Reset before loading
+    
+    if (file != NULL) {
+        char tempName[50];  // Use temp buffer for safety
+        int tempScore;
+        
+        while (fscanf(file, "%49s %d", tempName, &tempScore) == 2) {  // Limit input size
+            if (scoreCount >= MAX_SCORES) break;  // Safety check
+            
+            strcpy(highScores[scoreCount].name, tempName);
+            highScores[scoreCount].score = tempScore;
+            scoreCount++;
+        }
+        fclose(file);
+    }
+}
+
+void updateHighScores(const char *filename, const char *playerName, int playerScore) {
+    loadHighScores(filename); // Load existing scores first
+    
+    // Find correct insertion position (sorted insert)
+    int insertPos = scoreCount;
+    for (int i = 0; i < scoreCount; i++) {
+        if (playerScore > highScores[i].score) {
+            insertPos = i;
+            break;
+        }
+    }
+    
+    // Only insert if it makes the top MAX_SCORES
+    if (insertPos < MAX_SCORES) {
+        // Shift existing scores down to make room
+        int shiftEnd = (scoreCount < MAX_SCORES) ? scoreCount : MAX_SCORES - 1;
+        for (int i = shiftEnd; i > insertPos; i--) {
+            highScores[i] = highScores[i - 1];
+        }
+        
+        // Insert the new score
+        strncpy(highScores[insertPos].name, playerName, sizeof(highScores[insertPos].name) - 1);
+        highScores[insertPos].name[sizeof(highScores[insertPos].name) - 1] = '\0';  // Ensure null termination
+        highScores[insertPos].score = playerScore;
+        
+        // Update count only if we added to the end
+        if (scoreCount < MAX_SCORES) {
+            scoreCount++;
+        }
+    }
+    
+    saveHighScores(filename); // Save the updated scores
+}
+
+void saveHighScores(const char *filename) {
+    FILE *file = fopen(filename, "w");
+    
+    if (file != NULL) {
+        for (int i = 0; i < scoreCount; i++) {  // Use scoreCount, not MAX_SCORES
+            fprintf(file, "%s %d\n", highScores[i].name, highScores[i].score);
+        }
+        fclose(file);
+    }
+}
+
+// Remove addHighScore() or make it call updateHighScores() to avoid duplication
+void addHighScore(const char *name, int score) {
+    // Just call updateHighScores to maintain consistency
+    updateHighScores("highscores.txt", name, score);  // Use your actual filename
+}
+
+void drawHighScores() {
+    iText(100, 550, "POSITION     NAME              SCORE", GLUT_BITMAP_HELVETICA_18);
+    iText(100, 540, "-----------------------------------", GLUT_BITMAP_HELVETICA_18);
+    
+    for (int i = 0; i < scoreCount && i < MAX_SCORES; i++) {  // Added bounds check
+        char line[200];
+        sprintf(line, "%2d.         %-15s   %d", i + 1, highScores[i].name, highScores[i].score);
+        iText(100, 520 - i * 30, line, GLUT_BITMAP_HELVETICA_18);
+    }
+}
+
+// Optional: Initialize the high scores array (call this once at program start)
+void initHighScores() {
+    scoreCount = 0;
+    for (int i = 0; i < MAX_SCORES; i++) {
+        highScores[i].name[0] = '\0';  // Empty name
+        highScores[i].score = 0;       // Zero score
+    }
+}
+// -------------------- Enhanced Collision Detection --------------------
 
 void checkBulletVillainCollision() {
     for (int i = 0; i < MAX_BULLETS; i++) {
         if (bulletVisible[i] == 1) {
+            if (boss_active && boss_health > 0)
+            {
+                // Check collision with boss only
+                if (abs(bulletX[i] - bossX) < 60 && abs(bulletY[i] - bossY) < 60)
+                {
+                    bulletVisible[i] = 0;
+                    boss_health-=4;
+
+                    if (boss_health <= 0)
+                    {
+                        boss_active = 0;
+                        createExplosion((int)bossX, (int)bossY, 0);
+                        score_count += 500;  // Boss defeat bonus
+                       
+                         
+                    }
+                    continue; // Bullet consumed, next bullet
+                }
+                // If boss active and bullet didn't hit, skip villains entirely
+                continue;
+            }
+else{
             for (int j = 0; j < NUM_VILLAINS; j++) {
                 if (villains[j].active) {
                     // Circular collision detection
@@ -727,7 +1016,7 @@ void checkBulletVillainCollision() {
                         break;
                     }
                 }
-            }
+            }}
         }
     }
 }
@@ -843,12 +1132,19 @@ void drawHUD() {
     iRectangle(10, SCREEN_HEIGHT - 100, 250, 25);
     iTextBold(10, SCREEN_HEIGHT - 130, "Health", GLUT_BITMAP_TIMES_ROMAN_24);
 
-    // Lives
-    char livesStr[20];
-    sprintf(livesStr, "Lives: %d", lives);
-    iSetColor(255, 255, 255);
-    iTextBold(10, SCREEN_HEIGHT - 160, livesStr, GLUT_BITMAP_TIMES_ROMAN_24);
+    // Boss health bar
+    if (boss_trigger == 1)
+    {
 
+        iSetColor(255, 0, 0);
+        iFilledRectangle(SCREEN_WIDTH - 220, 100, 200, 20);
+        iSetColor(0, 0, 255);
+        iFilledRectangle(SCREEN_WIDTH - 220, 100, (200 * boss_health) / boss_max_health, 20);
+
+        iSetColor(255, 255, 255);
+        iTextBold(SCREEN_WIDTH - 220, 25, "Boss Health", GLUT_BITMAP_TIMES_ROMAN_24);
+    }
+    
     // Score
     char scoreStr[30];
     sprintf(scoreStr, "Score: %d", score_count);
@@ -1087,7 +1383,6 @@ void resetGame() {
     score_count = 0;
     time_elapsed = 0;
     player_health = max_health;
-    lives = 3;
     shield_active = 0;
     rapid_fire_active = 0;
     multishot_active = 0;
@@ -1096,6 +1391,8 @@ void resetGame() {
     spaceshipY = 100;
     gameTimer = 0;
     spawnTimer = 120;
+    boss_trigger = 0;
+    boss_active = 0;
     
     initialize_Villains();
     initialize_Bullets();
@@ -1112,28 +1409,9 @@ void resetGame() {
     newadd = 2;
 }
 
-void saveHighScore() {
-    if (score_count > high_score) {
-        high_score = score_count;
-        FILE* file = fopen("highscore.txt", "w");
-        if (file) {
-            fprintf(file, "%d", high_score);
-            fclose(file);
-        }
-    }
-}
 
-void loadHighScore() {
-    FILE* file = fopen("highscore.txt", "r");
-    if (file) {
-        if (fscanf(file, "%d", &high_score) != 1) {
-            high_score = 0;
-        }
-        fclose(file);
-    } else {
-        high_score = 0;
-    }
-}
+
+
 
 // -------------------- Utility Functions --------------------
 int gameover(int ax, int ay, int sx, int sy) {
@@ -1196,25 +1474,36 @@ void show_time() {
 void iMouse(int button, int state, int mx, int my) {
     if ((button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)) {
         if (strcmp(gameState, "menu") == 0) {
-            if (((my >= 650 && my <= 720))) {
+            if (((my >= 530 && my <= 600))) {
                 resetGame();
-                strcpy(gameState, "game");
-            }
-
-            if (((my >= 250 && my <= 320))) {
-                strcpy(gameState, "exit");
-                time_elapsed = 0;
-            }
-
-
-
-            if (((my >= 550 && my <= 620))) {
+                strcpy(gameState, "infopage");
+            }else if(my >= 430 && my <= 500 ) {
                 strcpy(gameState, "difficulty");
-                time_elapsed = 0;
+            }else if(my >= 330 && my <= 400) {
+                strcpy(gameState, "highscore");
+            }else if(my >= 230 && my <= 300) {
+                strcpy(gameState, "credits");
+            }else if(my >= 130 && my <= 200) {
+                
+                 strcpy(gameState, "exit");
             }
+           
         }
-        
-        else if (strcmp(gameState, "difficulty") == 0) {
+
+        else if (strcmp(gameState, "credits") == 0){
+             strcpy(gameState, "menu");
+        }
+
+         else if (strcmp(gameState, "highscore") == 0){
+             strcpy(gameState, "menu");
+        }
+        else if (strcmp(gameState, "gameover") == 0) {
+            updateHighScores("highscores.txt", playerName , score_count);
+            resetGame();
+            strcpy(gameState, "game");
+        }
+
+         else if (strcmp(gameState, "difficulty") == 0) {
 
       if (mx >= 145 && mx <= 400) {
         difficulty_level = 1;
@@ -1230,20 +1519,12 @@ void iMouse(int button, int state, int mx, int my) {
         strcpy(gameState, "menu");
       }
 
-    }
-
-
-
-        else if (strcmp(gameState, "gameover") == 0) {
-            resetGame();
-            strcpy(gameState, "game");
-        }
+       }
     }
 }
 
 void iKeyboard(unsigned char key) {
     if (key == 'q' || key == 'Q') {
-        saveHighScore();
         exit(0);
     }
     
@@ -1262,34 +1543,56 @@ void iKeyboard(unsigned char key) {
     }
     else if (strcmp(gameState, "gameover") == 0) {
         if (key == 'r' || key == 'R') {
+           
             resetGame();
             strcpy(gameState, "game");
         }
-        // CHANGED: Added homepage option
+      
         if (key == 'h' || key == 'H') {
+           
             strcpy(gameState, "menu");
+        }
+    }
+
+    else if (strcmp(gameState, "infopage") == 0) {
+        if (!enterPressed) {
+            if (key == '\r' || key == '\n') {
+                playerName[nameIndex] = '\0';
+                enterPressed = 1;
+            }
+            else if (key == '\b') {
+                if (nameIndex > 0) {
+                    nameIndex--;
+                    playerName[nameIndex] = '\0';
+                }
+            }
+            else if (key >= 32 && key <= 126 && nameIndex < MAX_NAME_LENGTH - 1) {
+                playerName[nameIndex++] = key;
+                playerName[nameIndex] = '\0';
+            }
         }
     }
 }
 
+
+
 void iMouseMove(int mx, int my) {
-
-    printf("%d %d", mx , my);
+    printf("%d %d\n" ,mx ,my);
     if (strcmp(gameState, "menu") == 0) {
-        hovernewgame = (my >= 650 && my <= 720) ? 1 : 0;
-        hoverdiff = (my >= 550 && my <= 620) ? 1 : 0;
-        hoverhighscore = (my >= 450 && my <= 520) ? 1 : 0;
-        hovercredits = (my >= 350 && my <= 420) ? 1 : 0;
-        hoverquit = (my >= 250 && my <= 320) ? 1 : 0;
+        if(mx >= 200 && mx <= 449){
+            hovernewgame = (my >= 700-185 && my <= 700-185+91) ? 1 : 0;
+            hoverdiff = (my >= 700-285 && my <= 700-285+91) ? 1 : 0;
+            hoverhighscore = (my >= 700-385 && my <= 700-385+91) ? 1 : 0;
+            hovercredits = (my >= 700-485 && my <= 700-485+91) ? 1 : 0;
+            hoverquit = (my >= 700-585 && my <= 700-585+91) ? 1 : 0;
+        } 
     }
-
-    if (strcmp(gameState, "difficulty") == 0) {
+     if (strcmp(gameState, "difficulty") == 0) {
         hovereasy = (mx >= 145 && mx <= 400) ? 1 : 0;
         hovermedium = (mx >= 445 && mx <= 700) ? 1 : 0;
         hoverhard = (mx >= 745 && mx <= 1000) ? 1 : 0;
         
     }
-    
 }
 
 void iMouseDrag(int mx, int my) {
@@ -1320,8 +1623,8 @@ void iSpecialKeyboard(unsigned char key) {
 // -------------------- Resource Loading --------------------
 void loadResources() {
     iLoadImage(&gamestateimage, "assets/images/bg_horizontal.png");
-    iLoadImage(&spaceship, "assets/images/ss5.png");
-    iLoadImage(&bullet_image, "assets/images/bullets1.png");
+    iLoadImage(&spaceship1, "assets/images/spaceship1.png");
+    iLoadImage(&bullet_image, "assets/images/bullets.png");
     iLoadImage(&villain1, "assets/images/villain3.png");
     iLoadImage(&villain2, "assets/images/villain2_x.png");
     iLoadImage(&villain3, "assets/images/villain1.png");
@@ -1332,21 +1635,23 @@ void loadResources() {
     iLoadImage(&multishot_img, "assets/images/multishot.png");
     iLoadImage(&enemy_bullet_img, "assets/images/enemy_bullet.png");
     iLoadImage(&title, "assets/images/title.png" );
-    iLoadImage(&diffbg, "assets/images/diffbg.png" );
-    iLoadImage(&easy, "assets/images/easy.png" );
-    iLoadImage(&medium, "assets/images/medium.png" );
-    iLoadImage(&hard, "assets/images/hard.png" );
-
-
+    iLoadImage(&final_boss, "assets/images/lastBoss.png");
+    iLoadImage(&boss_missiles, "assets/images/bossMissiles.png");
+    iLoadImage(&spaceship2, "assets/images/spaceship2.png");
+    iLoadImage(&spaceship3, "assets/images/spaceship3.png");
+    iLoadImage(&spaceship4, "assets/images/spaceship4.png");
+     iLoadImage(&scorebg, "assets/images/mmbg.png");
+      iLoadImage(&credit, "assets/images/credit.png");
+       iLoadImage(&diffbg, "assets/images/diffbg.png" );
 }
 
 // -------------------- Main Function --------------------
 int main(int argc, char *argv[]) {
     srand(time(NULL));
     glutInit(&argc, argv);
-    
+
     loadResources();
-    loadHighScore();
+   
     
     initialize_Villains();
     initialize_Bullets();
@@ -1354,11 +1659,14 @@ int main(int argc, char *argv[]) {
     initialize_Explosions();
     initialize_PowerUps();
     initialize_Particles();
+    initHighScores();
     
     // Maximum 8 timers as requested
     iSetTimer(8, rollingBackground);        // 1. Background scrolling
     iSetTimer(1000, show_time);             // 2. Time counter  
-    iSetTimer(16, gameUpdateLoop);          // 3. Main game update loop (consolidated)
+    iSetTimer(16, gameUpdateLoop);  
+      iSetTimer(15, updateBossMissiles);
+    iSetTimer(15, updateBossMovement);        // 3. Main game update loop (consolidated)
     
     // Additional timers (total = 8 max)
     iSetTimer(100, NULL);                   // 4. Reserved
@@ -1371,6 +1679,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(gameState, "menu") == 0) {
         bgsound = iPlaySound("assets/sounds/mm.wav", true);
     }
+    loadHighScores("highscores.txt");
 
     iInitialize(SCREEN_WIDTH, SCREEN_HEIGHT, gameTitle);
     
