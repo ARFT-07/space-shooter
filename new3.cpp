@@ -854,15 +854,12 @@ void ScoreInsert(Pilots Onboard[], Pilots newPilot, int score_count) {
 
 void ShowScore() {
    
-    Pilots scores[MAX_PILOTS];
-    int numScores = readScores("highscore.txt", scores, MAX_PILOTS);
-    
+    int numScores = readScores("highscore.txt", Onboard, MAX_PILOTS);
     iSetColor(255, 255, 255);
     iTextBold(SCREEN_WIDTH/2 - 100, SCREEN_HEIGHT/2 + 120, "High Scores", GLUT_BITMAP_TIMES_ROMAN_24);
-    
     for (int i = 0; i < numScores; i++) {
         char buffer[100];
-        sprintf(buffer, "%d. %s - %d", i + 1, scores[i].name, scores[i].score);
+        sprintf(buffer, "%d. %s - %d", i + 1, Onboard[i].name, Onboard[i].score);
         iTextBold(SCREEN_WIDTH/2 - 100, SCREEN_HEIGHT/2 + 70 - (i * 35), buffer, GLUT_BITMAP_TIMES_ROMAN_24);
     }
 }
@@ -1418,6 +1415,7 @@ void iMouse(int button, int state, int mx, int my) {
 
 void iKeyboard(unsigned char key) {
     if (key == 'q' || key == 'Q') {
+        strcpy(newonBoard.name, playerName);
         ScoreInsert(Onboard, newonBoard, score_count);
         exit(0);
     }
@@ -1437,11 +1435,14 @@ void iKeyboard(unsigned char key) {
     }
     else if (strcmp(gameState, "gameover") == 0) {
         if (key == 'r' || key == 'R') {
+            strcpy(newonBoard.name, playerName);
+            ScoreInsert(Onboard, newonBoard, score_count);
             resetGame();
             strcpy(gameState, "game");
         }
         // CHANGED: Added homepage option
         if (key == 'h' || key == 'H') {
+            strcpy(newonBoard.name, playerName);
             ScoreInsert(Onboard, newonBoard, score_count);
             strcpy(gameState, "menu");
         }
